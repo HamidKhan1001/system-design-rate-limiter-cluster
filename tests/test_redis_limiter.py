@@ -36,3 +36,26 @@ def test_different_identifiers_independent(limiter):
 
 def test_remaining_full_when_not_seen(limiter):
     assert limiter.remaining("fresh") == 10.0
+
+
+def test_fail_closed_when_redis_errors():
+    import redis as redis_lib
+    from unittest.mock import MagicMock
+
+    client = MagicMock()
+    client.register_script.return_value = MagicMock(side_effect=redis_lib.ConnectionError("down"))
+    assert RedisRateLimiter(client, capacity=1, refill_rate=1).allow("u") is False
+
+
+def test_fail_open_when_configured():
+    import redis as redis_lib
+    from unittest.mock import MagicMock
+
+    client = MagicMock()
+    client.register_script.return_value = MagicMock(side_effect=redis_lib.ConnectionError("down"))
+    assert RedisRateLimiter(client, capacity=1, refill_rate=1, fail_open=True).allow("u") is True
+
+
+def test_rejects_non_positive_config(redis):
+    with pytest.raises(ValueError):
+        RedisRateLimiter(redis, capacity=0, refill_rate=1)
